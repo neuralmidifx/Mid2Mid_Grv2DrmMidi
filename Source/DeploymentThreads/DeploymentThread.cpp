@@ -270,7 +270,7 @@ void DeploymentThread::DisplayEvent(const EventFromHost& event,
     // if input is multiline, split it into lines && print each line separately
     std::stringstream ss(input);
     std::string line;
-    while (std::getline(ss, line)) { std::cout << clr::on_red << "[DPL] " << line << std::endl; }
+    while (std::getline(ss, line)) { std::cout << clr::green << "[DPL] " << line << std::endl; }
 }
 
 bool DeploymentThread::load(const std::string& model_name_)
@@ -318,7 +318,7 @@ bool DeploymentThread::load(const std::string& model_name_)
         std::string line;
 
         while (std::getline(ss, line)) {
-            std::cout << clr::blue << "[MDL] " << line << std::endl;
+            std::cout << clr::blue << "[DPL] " << line << std::endl;
         }
     };
 

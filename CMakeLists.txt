@@ -49,10 +49,9 @@ juce_add_modules(shared_plugin_helpers)
 
 if (${BUILD_JUCE_PROTOTYPE_EXAMPLES})
     #adding project folders:
-    add_subdirectory(Demos/UnconditionalMidiGeneration)
 endif()
 
-add_subdirectory(Deployment/PluginCode)
+add_subdirectory(PluginCode)
 
 option(BUILD_UNIT_TESTS "Build JUCE prototype examples" ON)
 

@@ -288,7 +288,7 @@ const double waitTimeBtnIters{
 
 namespace thread_configurations::APVTSMediatorThread {
 // wait time between iterations in ms
-const double waitTimeBtnIters{0.5};
+const double waitTimeBtnIters{0.0};
 }
 // ======================================================================================
 // ==================       QUEUE  Settings                  ============================
