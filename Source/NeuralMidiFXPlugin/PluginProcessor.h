@@ -4,7 +4,7 @@
 //#include <vector>
 #include <torch/torch.h>
 #include "../Includes/Configs_Model.h"
-#include "../DeploymentThreads/DeploymentThread.h"
+#include "../../PluginCode/deploy.h"
 #include "../Includes/APVTSMediatorThread.h"
 #include "../Includes/LockFreeQueue.h"
 #include "../Includes/GenerationEvent.h"
@@ -17,13 +17,17 @@
 using namespace std;
 
 struct GenerationsToDisplay {
-public:
+private:
+    bool policy_accessed_already{false};
     double fs {44100};
     double qpm {-1};
     double playhead_pos {0};
+
+public:
     PlaybackPolicies policy;
     juce::MidiMessageSequence sequence_to_display;
     std::mutex mutex;
+
 
     void setSequence(const juce::MidiMessageSequence& sequence) {
         std::lock_guard<std::mutex> lock(mutex);
@@ -47,6 +51,7 @@ public:
 
     void setPolicy(PlaybackPolicies policy_) {
         std::lock_guard<std::mutex> lock(mutex);
+        policy_accessed_already = false;
         policy = policy_;
     }
 
@@ -58,6 +63,16 @@ public:
             return sequence_to_display_copy;
         } else {
             return std::nullopt;
+        }
+    }
+
+    std::optional<PlaybackPolicies> getPolicy() {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (policy_accessed_already) {
+            return std::nullopt;
+        } else {
+            policy_accessed_already = true;
+            return policy;
         }
     }
 
@@ -74,11 +89,6 @@ public:
     std::optional<double> getPlayheadPos() {
         std::lock_guard<std::mutex> lock(mutex);
         return playhead_pos;
-    }
-
-    std::optional<PlaybackPolicies> getPolicy() {
-        std::lock_guard<std::mutex> lock(mutex);
-        return policy;
     }
 
 };
@@ -177,7 +187,7 @@ public:
     unique_ptr<LockFreeQueue<juce::MidiFile, 4>> DPL2GUI_GenerationMidiFile_Que;
 
     // Threads used for generating patterns in the background
-    shared_ptr<DeploymentThread> deploymentThread;
+    shared_ptr<PluginDeploymentThread> deploymentThread;
 
 
     // APVTS

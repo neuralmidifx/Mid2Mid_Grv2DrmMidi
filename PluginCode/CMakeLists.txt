@@ -22,6 +22,5 @@ juce_add_plugin("${BaseTargetName}"
 
 
 
-
 # DO NOT REMOVE THIS LINE
 include("../CMakeLists.wrapper.txt")

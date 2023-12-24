@@ -20,6 +20,7 @@ inline double mapToLoopRange(double value, double loopStart, double loopEnd) {
     return mappedValue;
 }
 
+
 NeuralMidiFXPluginProcessor::NeuralMidiFXPluginProcessor() : apvts(
         *this, nullptr, "PARAMETERS",
         createParameterLayout()) {
@@ -92,7 +93,7 @@ NeuralMidiFXPluginProcessor::NeuralMidiFXPluginProcessor() : apvts(
         make_unique<LockFreeQueue<juce::MidiMessageSequence, 32>>() ;
 
     // ----------------------------------------------------------------------------------
-    deploymentThread = make_shared<DeploymentThread>();
+    deploymentThread = make_shared<PluginDeploymentThread>();
     apvtsMediatorThread =
         make_unique<APVTSMediatorThread>(deploymentThread->CustomPresetData.get());
 
@@ -446,6 +447,8 @@ void NeuralMidiFXPluginProcessor::sendReceivedInputsAsEvents(
     }
 }
 
+
+
 juce::AudioProcessorEditor *NeuralMidiFXPluginProcessor::createEditor() {
     auto editor = new NeuralMidiFXPluginEditor(*this);
     /*modelThread.addChangeListener(editor);*/
@@ -459,6 +462,9 @@ juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {
 
 
 juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor::createParameterLayout() {
+
+    std::vector<std::string> param_ids_so_far;
+
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     int version_hint = 1;
@@ -469,6 +475,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
     size_t numButtons;
     size_t numhsliders;
     size_t numComboBoxes;
+    size_t numTriangleSliders;
 
     tab_tuple tabTuple;
 
@@ -477,6 +484,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
     button_list buttonList;
     hslider_list hsliderList;
     comboBox_list comboboxList;
+    triangleSliders_list triangleSlidersList;
 
     for (size_t j = 0; j < numTabs; j++) {
         tabTuple = UIObjects::Tabs::tabList[j];
@@ -486,12 +494,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
         buttonList = std::get<3>(tabTuple);
         hsliderList = std::get<4>(tabTuple);
         comboboxList = std::get<5>(tabTuple);
+        triangleSlidersList = std::get<10>(tabTuple);
 
         numSliders = sliderList.size();
         numRotaries = rotaryList.size();
         numButtons = buttonList.size();
         numhsliders = hsliderList.size();
         numComboBoxes = comboboxList.size();
+        numTriangleSliders = triangleSlidersList.size();
 
         // Sliders
         for (size_t i = 0; i < numSliders; ++i) {
@@ -504,10 +514,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
 
 
             // Param ID will read "Slider" + [tab, item] i.e. 'Slider_13"
-            juce::String paramIDstr = label2ParamID(name);
+            auto paramIDstr = label2ParamID(name);
             juce::ParameterID paramID = juce::ParameterID(paramIDstr, version_hint);
 
-            layout.add(std::make_unique<juce::AudioParameterFloat>(paramID, name, minValue, maxValue, initValue));
+            bool alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (param_id == paramIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterFloat> (paramID, name, minValue, maxValue, initValue));
+                param_ids_so_far.push_back(paramIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramIDstr << ". \tCheck if intentional!" << endl;
+            }
+
         }
 
         // Rotaries
@@ -522,7 +546,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
             auto paramIDstr = label2ParamID(name);
             juce::ParameterID paramID = juce::ParameterID(paramIDstr, version_hint);
 
-            layout.add (std::make_unique<juce::AudioParameterFloat> (paramID, name, minValue, maxValue, initValue));
+            bool alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (param_id == paramIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterFloat> (paramID, name, minValue, maxValue, initValue));
+                param_ids_so_far.push_back(paramIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramIDstr << ". Check if intentional!" << endl;
+            }
         }
 
         // Buttons
@@ -533,7 +570,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
 
             auto paramIDstr = label2ParamID(name);
             juce::ParameterID paramID = juce::ParameterID(paramIDstr, version_hint);
-            layout.add (std::make_unique<juce::AudioParameterInt> (paramID, name, 0, 1, 0));
+
+            bool alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (param_id == paramIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterInt> (paramID, name, 0, 1, 0));
+                param_ids_so_far.push_back(paramIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramIDstr << ". Check if intentional!" << endl;
+            }
         }
 
         // Vertical Sliders
@@ -548,7 +599,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
             auto paramIDstr = label2ParamID(name);
             juce::ParameterID paramID = juce::ParameterID(paramIDstr, version_hint);
 
-            layout.add (std::make_unique<juce::AudioParameterFloat> (paramID, name, minValue, maxValue, initValue));
+            bool alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (param_id == paramIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterFloat> (paramID, name, minValue, maxValue, initValue));
+                param_ids_so_far.push_back(paramIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramIDstr << ". Check if intentional!" << endl;
+            }
         }
 
         // Combo Boxes
@@ -556,11 +620,73 @@ juce::AudioProcessorValueTreeState::ParameterLayout NeuralMidiFXPluginProcessor:
             auto comboboxJson = comboboxList[i];
 
             auto name = comboboxJson["label"].get<std::string>();
-            auto items = comboboxJson["options"].get<std::vector<std::string>>();
-
+            auto items = comboboxJson["items"].get<std::vector<std::string>>();
             auto paramIDstr = label2ParamID(name);
             juce::ParameterID paramID = juce::ParameterID(paramIDstr, version_hint);
-            layout.add (std::make_unique<juce::AudioParameterInt> (paramID, name, 0, items.size() - 1, 0));
+
+            bool alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (param_id == paramIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterInt> (paramID, name, 0, items.size() - 1, 0));
+                param_ids_so_far.push_back(paramIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramIDstr << ". Check if intentional!" << endl;
+            }
+        }
+
+        // Triangle Sliders
+        for (size_t i = 0; i < numTriangleSliders; ++i) {
+            auto json = triangleSlidersList[i];
+
+            if (!json.contains("DistanceFromBottomLeftCornerSlider") || !json.contains("HeightSlider")) {
+                cout << "ERROR: Triangle Slider missing DistanceFromBottomLeftCornerSlider or HeightSlider" << endl;
+                continue;
+            }
+
+            auto DistanceFromBottomLeftCornerSlider = json["DistanceFromBottomLeftCornerSlider"].get<std::string>();
+            auto HeightSlider = json["HeightSlider"].get<std::string>();
+
+            auto paramAIDstr = label2ParamID(DistanceFromBottomLeftCornerSlider);
+            auto paramBIDstr = label2ParamID(HeightSlider);
+
+            juce::ParameterID paramAID = juce::ParameterID(paramAIDstr, version_hint);
+            juce::ParameterID paramBID = juce::ParameterID(paramBIDstr, version_hint);
+
+            bool alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (label2ParamID(param_id) == paramAIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterFloat> (paramAID, paramAIDstr, 0, 1, 0));
+                param_ids_so_far.push_back(paramAIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramAIDstr << ". Check if intentional!" << endl;
+            }
+
+            alreadyExists = false;
+            for (const auto& param_id : param_ids_so_far) {
+                if (label2ParamID(param_id) == paramBIDstr) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!alreadyExists) {
+                layout.add (std::make_unique<juce::AudioParameterFloat> (paramBID, paramBIDstr, 0, 1, 0));
+                param_ids_so_far.push_back(paramBIDstr);
+            } else {
+                cout << "[settings.json] WARNING: Duplicate paramID: " << paramBIDstr << ". Check if intentional!" << endl;
+            }
         }
 
     }
@@ -623,17 +749,7 @@ void NeuralMidiFXPluginProcessor::getStateInformation(juce::MemoryBlock &destDat
     // Generate and save the file path
     auto filePath = generateTempFileName();
     xml->setAttribute("filePath", filePath); // Add the file path as an attribute
-//    cout << "Saving preset to: " << filePath << endl;
     copyXmlToBinary(*xml, destData);
-
-    // generate and save the temp tensor
-//    auto tempTensor = deploymentThread->CustomPresetData->tensors();
-
-    // save the tensor map
-//    cout << "Saving tensor map: " << endl;
-//    deploymentThread->CustomPresetData->printTensorMap();
-//    save_tensor_map(tempTensor, filePath);
-
 }
 
 void NeuralMidiFXPluginProcessor::setStateInformation(const void *data, int sizeInBytes) {
@@ -642,23 +758,9 @@ void NeuralMidiFXPluginProcessor::setStateInformation(const void *data, int size
     if (xmlState != nullptr) {
         if (xmlState->hasTagName(apvts.state.getType())) {
             apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
-
-            // Retrieve and handle the file path
-             auto filePath = xmlState->getStringAttribute("filePath");
-            // Handle the file path as needed
-
-//            cout << "Loading preset from: " << filePath << endl;
-//            auto tensormap = load_tensor_map(filePath.toStdString());
-
-//            deploymentThread->CustomPresetData->copy_from_map(tensormap);
-
-//            cout << "Loaded tensor map: " << endl;
-//            deploymentThread->CustomPresetData->printTensorMap();
-
         }
     }
 }
-
 
 void NeuralMidiFXPluginProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                                juce::MidiBuffer &midiMessages) {
@@ -672,8 +774,19 @@ void NeuralMidiFXPluginProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto buffSize = buffer.getNumSamples();
 
     // check if standalone mode
+    bool shouldActStandalone = false;
+    if (JUCEApplicationBase::isStandaloneApp()) {
+        if (UIObjects::StandaloneTransportPanel::enable) {
+            shouldActStandalone = true;
+        }
+    } else {
+        if (UIObjects::StandaloneTransportPanel::enable &&
+            !UIObjects::StandaloneTransportPanel::disableInPluginMode) {
+            shouldActStandalone = true;
+        }
+    }
 
-    if (UIObjects::StandaloneTransportPanel::enable) {
+    if (shouldActStandalone) {
         standAloneParams->update();
         Pinfo->setTimeInSamples(standAloneParams->TimeInSamples);
         Pinfo->setTimeInSeconds(standAloneParams->TimeInSeconds);
@@ -701,13 +814,13 @@ void NeuralMidiFXPluginProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     generationsToDisplay.setFs(fs);
     generationsToDisplay.setQpm(   *Pinfo->getBpm());
-    generationsToDisplay.playhead_pos = *Pinfo->getPpqPosition();
+    generationsToDisplay.setPlayheadPos(*Pinfo->getPpqPosition());
 
     // check if any events are received from the DPL thread
     if (DPL2NMP_GenerationEvent_Que->getNumReady() > 0)
     {
         event = DPL2NMP_GenerationEvent_Que->pop();
-        generationsToDisplay.policy = playbackPolicies;
+        generationsToDisplay.setPolicy( playbackPolicies);
         // update midi message sequence if new one arrived
         if (event->IsNewPlaybackSequence())
         {
